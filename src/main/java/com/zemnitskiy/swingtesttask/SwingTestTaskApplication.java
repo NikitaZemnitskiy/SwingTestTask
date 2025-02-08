@@ -79,7 +79,6 @@ public class SwingTestTaskApplication extends JFrame {
         enterButton.setMinimumSize(BUTTON_SIZE);
         enterButton.setPreferredSize(BUTTON_SIZE);
         enterButton.setMaximumSize(BUTTON_SIZE);
-
         gbc.gridy = 2;
         panel.add(enterButton, gbc);
 
@@ -136,7 +135,6 @@ public class SwingTestTaskApplication extends JFrame {
         controlPanel.add(sortButton);
         controlPanel.add(Box.createVerticalStrut(10));
         controlPanel.add(resetButton);
-
         panel.add(controlPanel, BorderLayout.EAST);
 
         sortButton.addActionListener(e -> startSortAnimation());
@@ -172,7 +170,6 @@ public class SwingTestTaskApplication extends JFrame {
 
             for (int row = 0; row < 10 && index < total; row++) {
                 JButton btn = getjButton(index);
-
                 colPanel.add(btn);
                 colPanel.add(Box.createVerticalStrut(5));
                 index++;
@@ -239,19 +236,39 @@ public class SwingTestTaskApplication extends JFrame {
         }
     }
 
-    // Partition method for QuickSort
+    // Partition method for QuickSort using median-of-three pivot selection
     private int partition(int low, int high, boolean ascending) throws Exception {
+        int mid = low + (high - low) / 2;
+
+        // Retrieve values of first, middle, and last elements
+        int a = numbers.get(low);
+        int b = numbers.get(mid);
+        int c = numbers.get(high);
+
+        // Determine median-of-three pivot index
+        int pivotIndex;
+        if ((a <= b && b <= c) || (c <= b && b <= a)) {
+            pivotIndex = mid;
+        } else if ((b <= a && a <= c) || (c <= a && a <= b)) {
+            pivotIndex = low;
+        } else {
+            pivotIndex = high;
+        }
+
+        // Swap the chosen pivot with the last element
+        Collections.swap(numbers, pivotIndex, high);
+        updateAndDelay();
+
         int pivot = numbers.get(high);
         int i = low - 1;
-
         for (int j = low; j < high; j++) {
-            if ((ascending && numbers.get(j) < pivot) || (!ascending && numbers.get(j) > pivot)) {
+            if ((ascending && numbers.get(j) < pivot) ||
+                    (!ascending && numbers.get(j) > pivot)) {
                 i++;
                 Collections.swap(numbers, i, j);
                 updateAndDelay();
             }
         }
-
         Collections.swap(numbers, i + 1, high);
         updateAndDelay();
         return i + 1;
