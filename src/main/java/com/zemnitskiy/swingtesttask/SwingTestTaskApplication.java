@@ -37,7 +37,6 @@ import java.util.Random;
  */
 public class SwingTestTaskApplication extends JFrame {
 
-    // UI Constants
     private static final int BUTTON_WIDTH = 120;
     private static final int BUTTON_HEIGHT = 30;
     private static final Dimension BUTTON_SIZE = new Dimension(BUTTON_WIDTH, BUTTON_HEIGHT);
