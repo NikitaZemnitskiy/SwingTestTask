@@ -31,8 +31,8 @@ import java.util.Random;
 /**
  * Main application class for the Swing Test Task.
  * <p>
- * This application allows users to generate random numbers, display them as buttons,
- * and sort them with an animated QuickSort algorithm.
+ * This application generates random numbers, displays them as buttons,
+ * and animates an in-place QuickSort algorithm.
  * </p>
  */
 public class SwingTestTaskApplication extends JFrame {
@@ -64,12 +64,13 @@ public class SwingTestTaskApplication extends JFrame {
     private JButton sortButton;
     private List<Integer> numbers;
     private int numberCount;
-
-    // Sorting flag: false – descending, true – ascending; toggles after each "Sort" click
     private boolean sortAscending = false;
 
+    // Current sorting SwingWorker (if any)
+    private SwingWorker<Void, Void> sortingWorker;
+
     /**
-     * Main method to launch the application.
+     * Launches the application.
      *
      * @param args command-line arguments (not used)
      */
@@ -78,7 +79,7 @@ public class SwingTestTaskApplication extends JFrame {
     }
 
     /**
-     * Constructs the SwingTestTaskApplication and initializes the UI.
+     * Constructs the application and initializes the UI.
      */
     public SwingTestTaskApplication() {
         initFrame();
@@ -95,7 +96,7 @@ public class SwingTestTaskApplication extends JFrame {
     }
 
     /**
-     * Initializes the user interface by setting up panels and the card layout.
+     * Initializes the UI panels and card layout.
      */
     private void initUI() {
         JPanel introPanel = createIntroScreen();
@@ -111,26 +112,26 @@ public class SwingTestTaskApplication extends JFrame {
     /**
      * Creates the introductory screen with an input field and an "Enter" button.
      *
-     * @return the JPanel representing the introductory screen.
+     * @return the introductory JPanel.
      */
     private JPanel createIntroScreen() {
-        final JPanel panel = new JPanel(new GridBagLayout());
-        final GridBagConstraints gridBagConstraints = new GridBagConstraints();
-        gridBagConstraints.insets = new Insets(10, 10, 10, 10);
+        JPanel panel = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(10, 10, 10, 10);
 
-        final JLabel promptLabel = new JLabel("How many numbers to display?");
+        JLabel promptLabel = new JLabel("How many numbers to display?");
         promptLabel.setFont(LABEL_FONT);
-        gridBagConstraints.gridx = 0;
-        gridBagConstraints.gridy = 0;
-        panel.add(promptLabel, gridBagConstraints);
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        panel.add(promptLabel, gbc);
 
-        final JTextField inputField = new JTextField(10);
-        gridBagConstraints.gridy = 1;
-        panel.add(inputField, gridBagConstraints);
+        JTextField inputField = new JTextField(10);
+        gbc.gridy = 1;
+        panel.add(inputField, gbc);
 
-        final JButton enterButton = createConfiguredButton("Enter");
-        gridBagConstraints.gridy = 2;
-        panel.add(enterButton, gridBagConstraints);
+        JButton enterButton = createConfiguredButton("Enter");
+        gbc.gridy = 2;
+        panel.add(enterButton, gbc);
 
         enterButton.addActionListener(e -> {
             try {
@@ -150,9 +151,9 @@ public class SwingTestTaskApplication extends JFrame {
     }
 
     /**
-     * Creates the sorting screen with number buttons and control buttons ("Sort" and "Reset").
+     * Creates the sorting screen with number buttons and "Sort" and "Reset" controls.
      *
-     * @return the JPanel representing the sorting screen.
+     * @return the sorting JPanel.
      */
     private JPanel createSortScreen() {
         JPanel panel = new JPanel(new BorderLayout());
@@ -175,23 +176,27 @@ public class SwingTestTaskApplication extends JFrame {
         panel.add(controlPanel, BorderLayout.EAST);
 
         sortButton.addActionListener(e -> startSortAnimation());
-        resetButton.addActionListener(e -> cardLayout.show(mainPanel, CARD_INTRO));
+        resetButton.addActionListener(e -> {
+            if (sortingWorker != null && !sortingWorker.isDone()) {
+                sortingWorker.cancel(true);
+            }
+            resetButtonColors();
+            cardLayout.show(mainPanel, CARD_INTRO);
+        });
 
         return panel;
     }
 
     /**
-     * Generates a list of random numbers based on the provided count.
+     * Generates a list of random numbers and updates the display.
      */
     private void generateNumbers() {
         numbers = new ArrayList<>();
-        // Generate (numberCount - 1) numbers, each greater or equal to MAX_VALUE_FOR_SPECIAL_BUTTON.
         for (int i = 0; i < numberCount - 1; i++) {
             int randomNumber = randomGenerator.nextInt(1000 - MAX_VALUE_FOR_SPECIAL_BUTTON + 1)
                     + MAX_VALUE_FOR_SPECIAL_BUTTON;
             numbers.add(randomNumber);
         }
-        // Ensure at least one number is less than or equal to MAX_VALUE_FOR_SPECIAL_BUTTON.
         numbers.add(randomGenerator.nextInt(MAX_VALUE_FOR_SPECIAL_BUTTON) + 1);
         Collections.shuffle(numbers);
         refreshNumbersPanel();
@@ -205,11 +210,9 @@ public class SwingTestTaskApplication extends JFrame {
         int totalNumbers = numbers.size();
         int columns = (int) Math.ceil(totalNumbers / (double) MAX_BUTTONS_PER_COLUMN);
         int index = 0;
-
         for (int col = 0; col < columns; col++) {
             JPanel columnPanel = new JPanel();
             columnPanel.setLayout(new BoxLayout(columnPanel, BoxLayout.Y_AXIS));
-
             for (int row = 0; row < MAX_BUTTONS_PER_COLUMN && index < totalNumbers; row++) {
                 JButton numberButton = createNumberButton(index);
                 columnPanel.add(numberButton);
@@ -223,18 +226,16 @@ public class SwingTestTaskApplication extends JFrame {
     }
 
     /**
-     * Creates a button representing a number based on its index.
+     * Creates a button representing a number.
      *
-     * @param index the index of the number in the list.
-     * @return the configured JButton displaying the number.
+     * @param index the index in the numbers list.
+     * @return the configured JButton.
      */
     private JButton createNumberButton(int index) {
         int value = numbers.get(index);
         JButton button = createConfiguredButton(String.valueOf(value));
-
         button.addActionListener(e -> {
             if (value <= MAX_VALUE_FOR_SPECIAL_BUTTON) {
-                // Set the new count based on the button's value and regenerate numbers.
                 numberCount = value;
                 generateNumbers();
             } else {
@@ -245,41 +246,49 @@ public class SwingTestTaskApplication extends JFrame {
     }
 
     /**
-     * Starts the sorting animation using the QuickSort algorithm.
+     * Starts the animated QuickSort.
      */
     private void startSortAnimation() {
         sortButton.setEnabled(false);
-
-        SwingWorker<Void, Void> sorter = new SwingWorker<>() {
+        sortingWorker = new SwingWorker<>() {
             @Override
-            protected Void doInBackground() throws SortingException {
+            protected Void doInBackground() throws Exception {
                 try {
                     quickSort(0, numbers.size() - 1, sortAscending);
-                } catch (Exception ex) {
-                    throw new SortingException("An error occurred during sorting.", ex);
+                } catch (InterruptedException ie) {
+                    // Sorting was cancelled.
                 }
                 return null;
             }
 
             @Override
             protected void done() {
-                // Toggle sorting order for the next sort.
-                sortAscending = !sortAscending;
                 sortButton.setEnabled(true);
+                if (isCancelled()) {
+                    SwingUtilities.invokeLater(() -> {
+                        resetButtonColors();
+                        refreshNumbersPanel();
+                    });
+                } else {
+                    sortAscending = !sortAscending;
+                }
             }
         };
-        sorter.execute();
+        sortingWorker.execute();
     }
 
     /**
-     * Implements the recursive QuickSort algorithm.
+     * Recursively performs QuickSort.
      *
-     * @param low       the starting index of the partition.
-     * @param high      the ending index of the partition.
-     * @param ascending whether to sort in ascending order.
-     * @throws Exception if an error occurs during sorting.
+     * @param low       the starting index.
+     * @param high      the ending index.
+     * @param ascending sort order flag.
+     * @throws Exception if an error occurs.
      */
     private void quickSort(int low, int high, boolean ascending) throws Exception {
+        if (Thread.currentThread().isInterrupted()) {
+            throw new InterruptedException("Sorting cancelled.");
+        }
         if (low < high) {
             int partitionIndex = partition(low, high, ascending);
             quickSort(low, partitionIndex - 1, ascending);
@@ -288,51 +297,43 @@ public class SwingTestTaskApplication extends JFrame {
     }
 
     /**
-     * Partitions the list for QuickSort using the median-of-three pivot selection.
+     * Partitions the list using the median-of-three pivot selection.
      *
      * @param low       the starting index.
      * @param high      the ending index.
-     * @param ascending whether to sort in ascending order.
+     * @param ascending sort order flag.
      * @return the partition index.
-     * @throws Exception if an error occurs during partitioning.
+     * @throws Exception if an error occurs.
      */
     private int partition(int low, int high, boolean ascending) throws Exception {
         int pivotIndex = selectPivotIndex(low, high);
-        Collections.swap(numbers, pivotIndex, high);
-        updateUIWithDelay();
+        highlightAndSwap(pivotIndex, high);
 
         int pivotValue = numbers.get(high);
-        int smallerElementIndex  = low - 1;
-
+        int smallerElementIndex = low - 1;
         for (int j = low; j < high; j++) {
             if ((ascending && numbers.get(j) < pivotValue) ||
                     (!ascending && numbers.get(j) > pivotValue)) {
-                smallerElementIndex ++;
-                highlightButtons(smallerElementIndex , j);
-                Collections.swap(numbers, smallerElementIndex , j);
-                updateUIWithDelay();
+                smallerElementIndex++;
+                highlightAndSwap(smallerElementIndex, j);
             }
         }
-        Collections.swap(numbers, smallerElementIndex  + 1, high);
-        updateUIWithDelay();
-
-        return smallerElementIndex  + 1;
+        highlightAndSwap(smallerElementIndex + 1, high);
+        return smallerElementIndex + 1;
     }
 
     /**
-     * Selects the pivot index using the median-of-three method.
+     * Selects a pivot index using the median-of-three method.
      *
      * @param low  the starting index.
      * @param high the ending index.
-     * @return the selected pivot index.
+     * @return the pivot index.
      */
     private int selectPivotIndex(int low, int high) {
         int mid = low + (high - low) / 2;
         int first = numbers.get(low);
         int middle = numbers.get(mid);
         int last = numbers.get(high);
-
-        // Determine the median value among the three
         if ((first <= middle && middle <= last) || (last <= middle && middle <= first)) {
             return mid;
         } else if ((middle <= first && first <= last) || (last <= first && first <= middle)) {
@@ -343,29 +344,33 @@ public class SwingTestTaskApplication extends JFrame {
     }
 
     /**
-     * Highlights the buttons involved in the sorting process.
+     * Highlights two elements, swaps them, and updates the UI.
      *
-     * @param index1 the first button index.
-     * @param index2 the second button index.
+     * @param index1 the first index.
+     * @param index2 the second index.
+     * @throws Exception if an error occurs.
      */
-    private void highlightButtons(int index1, int index2) {
-        resetButtonColors();
-        final JButton button1 = getButtonByIndex(index1);
-        final JButton button2 = getButtonByIndex(index2);
-
-        if (button1 != null) {
-            button1.setBackground(HIGHLIGHT_COLOR);
+    private void highlightAndSwap(int index1, int index2) throws Exception {
+        if (index1 == index2) {
+            return;
         }
-        if (button2 != null) {
-            button2.setBackground(HIGHLIGHT_COLOR);
-        }
-
-        numbersPanel.revalidate();
-        numbersPanel.repaint();
+        SwingUtilities.invokeAndWait(() -> {
+            resetButtonColors();
+            JButton button1 = getButtonByIndex(index1);
+            JButton button2 = getButtonByIndex(index2);
+            if (button1 != null) button1.setBackground(HIGHLIGHT_COLOR);
+            if (button2 != null) button2.setBackground(HIGHLIGHT_COLOR);
+            numbersPanel.revalidate();
+            numbersPanel.repaint();
+        });
+        Thread.sleep(SORT_DELAY_MS);
+        Collections.swap(numbers, index1, index2);
+        SwingUtilities.invokeAndWait(this::refreshNumbersPanel);
+        Thread.sleep(SORT_DELAY_MS / 2);
     }
 
     /**
-     * Resets all button colors to the default BUTTON_COLOR.
+     * Resets all button colors to the default.
      */
     private void resetButtonColors() {
         for (JButton button : getAllButtons()) {
@@ -376,12 +381,11 @@ public class SwingTestTaskApplication extends JFrame {
     /**
      * Retrieves all buttons from the numbers panel.
      *
-     * @return a List of all JButtons in the numbers panel.
+     * @return a list of JButtons.
      */
     private List<JButton> getAllButtons() {
-        final List<JButton> buttons = new ArrayList<>();
-        final Component[] components = numbersPanel.getComponents();
-        for (Component comp : components) {
+        List<JButton> buttons = new ArrayList<>();
+        for (Component comp : numbersPanel.getComponents()) {
             if (comp instanceof JPanel jPanel) {
                 for (Component child : jPanel.getComponents()) {
                     if (child instanceof JButton jButton) {
@@ -394,34 +398,24 @@ public class SwingTestTaskApplication extends JFrame {
     }
 
     /**
-     * Retrieves a button by its index from the numbers panel.
+     * Retrieves a button by its index.
      *
-     * @param targetIndex the index of the button.
-     * @return the JButton if found, otherwise {@code null}.
+     * @param targetIndex the target index.
+     * @return the JButton if found; otherwise, null.
      */
     private JButton getButtonByIndex(int targetIndex) {
-        final List<JButton> buttons = getAllButtons();
+        List<JButton> buttons = getAllButtons();
         return (targetIndex >= 0 && targetIndex < buttons.size()) ? buttons.get(targetIndex) : null;
     }
 
     /**
-     * Updates the UI and introduces a delay for the sorting animation.
+     * Creates a configured JButton.
      *
-     * @throws Exception if an error occurs during the UI update.
-     */
-    private void updateUIWithDelay() throws Exception {
-        SwingUtilities.invokeAndWait(this::refreshNumbersPanel);
-        Thread.sleep(SORT_DELAY_MS);
-    }
-
-    /**
-     * Creates and configures a JButton with the specified text.
-     *
-     * @param text the text to display on the button.
+     * @param text the button text.
      * @return the configured JButton.
      */
     private JButton createConfiguredButton(String text) {
-        final JButton button = new JButton(text);
+        JButton button = new JButton(text);
         button.setAlignmentX(Component.CENTER_ALIGNMENT);
         button.setMinimumSize(BUTTON_SIZE);
         button.setPreferredSize(BUTTON_SIZE);
@@ -435,26 +429,12 @@ public class SwingTestTaskApplication extends JFrame {
     }
 
     /**
-     * Displays an error message in a dialog.
+     * Displays an error message dialog.
      *
-     * @param message the error message to display.
+     * @param message the error message.
      */
     private void showError(String message) {
         JOptionPane.showMessageDialog(this, message, "Error", JOptionPane.ERROR_MESSAGE);
     }
 
-    /**
-     * Custom exception class for errors that occur during sorting.
-     */
-    private static class SortingException extends Exception {
-        /**
-         * Constructs a new SortingException with the specified detail message and cause.
-         *
-         * @param message the detail message.
-         * @param cause   the underlying cause of the exception.
-         */
-        public SortingException(String message, Throwable cause) {
-            super(message, cause);
-        }
-    }
 }
