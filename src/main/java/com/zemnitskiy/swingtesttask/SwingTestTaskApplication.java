@@ -46,7 +46,7 @@ public class SwingTestTaskApplication extends JFrame {
     private static final Font DEFAULT_FONT = new Font(FONT_NAME, FONT_STYLE, FONT_SIZE);
     private static final Font LABEL_FONT = new Font(FONT_NAME, FONT_STYLE, 16);
 
-    private static final int SORT_DELAY_MS = 50;
+    private static final int SORT_DELAY_MS = 200;
     private static final int MAX_VALUE_FOR_SPECIAL_BUTTON = 30;
     private static final int MAX_BUTTONS_PER_COLUMN = 10;
 
